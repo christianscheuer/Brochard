@@ -3,9 +3,9 @@ using OrchardVNext.ContentManagement;
 
 namespace OrchardVNext.Data {
     public interface IContentItemStore : IDependency {
-        void Store(ContentItem contentItem);
-        ContentItem Get(int id);
-        ContentItem Get(int id, VersionOptions options);
-        IEnumerable<ContentItem> GetMany(IEnumerable<int> ids);
+        void Store(IContent contentItem);
+        IContent Get(int id);
+        IContent Get(int id, VersionOptions options);
+        IEnumerable<IContent> GetMany(IEnumerable<int> ids);
     }
 }

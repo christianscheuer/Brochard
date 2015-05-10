@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using OrchardVNext.ContentManagement.Handlers;
 using OrchardVNext.ContentManagement.MetaData;
 using OrchardVNext.ContentManagement.MetaData.Builders;
@@ -16,6 +17,8 @@ namespace OrchardVNext.ContentManagement {
         private readonly IEnumerable<IContentHandler> _handlers;
         private readonly IContentItemStore _contentItemStore;
         private readonly IContentStorageProvider _contentStorageProvider;
+        private readonly IContentIndexProvider _contentIndexProvider;
+        private readonly IDocumentStore _documentStore;
         private readonly ShellSettings _shellSettings;
 
         private const string Published = "Published";
@@ -27,6 +30,8 @@ namespace OrchardVNext.ContentManagement {
             IEnumerable<IContentHandler> handlers,
             IContentItemStore contentItemStore,
             IContentStorageProvider contentStorageProvider,
+            IContentIndexProvider contentIndexProvider, 
+            IDocumentStore documentStore,
             ShellSettings shellSettings) {
             _contentDefinitionManager = contentDefinitionManager;
             _contentManagerSession = contentManagerSession;
@@ -34,6 +39,8 @@ namespace OrchardVNext.ContentManagement {
             _handlers = handlers;
             _contentItemStore = contentItemStore;
             _contentStorageProvider = contentStorageProvider;
+            _contentIndexProvider = contentIndexProvider;
+            _documentStore = documentStore;
         }
 
         public IEnumerable<IContentHandler> Handlers => _handlers;
@@ -96,7 +103,7 @@ namespace OrchardVNext.ContentManagement {
                     return contentItem;
                 }
 
-                versionRecord = _contentItemStore.Get(id, options).VersionRecord;
+                versionRecord = _contentItemStore.Get(id, options).ContentItem.VersionRecord;
             }
             else if (options.VersionNumber != 0) {
                 // short-circuit if item held in session
@@ -104,7 +111,7 @@ namespace OrchardVNext.ContentManagement {
                     return contentItem;
                 }
 
-                versionRecord = _contentItemStore.Get(id, options).VersionRecord;
+                versionRecord = _contentItemStore.Get(id, options).ContentItem.VersionRecord;
             }
             else if (_contentManagerSession.RecallContentRecordId(id, out contentItem)) {
                 // try to reload a previously loaded published content item
@@ -119,7 +126,7 @@ namespace OrchardVNext.ContentManagement {
             // no record means content item is not in db
             if (versionRecord == null) {
                 // check in memory
-                var record = _contentItemStore.Get(id, options).VersionRecord;
+                var record = _contentItemStore.Get(id, options).ContentItem.VersionRecord;
                 if (record == null) {
                     return null;
                 }
@@ -156,7 +163,7 @@ namespace OrchardVNext.ContentManagement {
 
             return contentItem;
         }
-        
+
         //    public virtual IEnumerable<ContentItem> GetAllVersions(int id) {
         //        return _contentItemVersionRepository
         //            .Fetch(x => x.ContentItemRecord.Id == id)
@@ -164,96 +171,96 @@ namespace OrchardVNext.ContentManagement {
         //            .Select(x => Get(x.Id, VersionOptions.VersionRecord(x.Id)));
         //    }
 
-        //    public IEnumerable<T> GetMany<T>(IEnumerable<int> ids, VersionOptions options) where T : class, IContent {
-        //        var contentItemVersionRecords = GetManyImplementation(hints, (contentItemCriteria, contentItemVersionCriteria) => {
-        //            contentItemCriteria.Add(Restrictions.In("Id", ids.ToArray()));
-        //            if (options.IsPublished) {
-        //                contentItemVersionCriteria.Add(Restrictions.Eq("Published", true));
-        //            }
-        //            else if (options.IsLatest) {
-        //                contentItemVersionCriteria.Add(Restrictions.Eq("Latest", true));
-        //            }
-        //            else if (options.IsDraft && !options.IsDraftRequired) {
-        //                contentItemVersionCriteria.Add(
-        //                    Restrictions.And(Restrictions.Eq("Published", false),
-        //                                    Restrictions.Eq("Latest", true)));
-        //            }
-        //            else if (options.IsDraft || options.IsDraftRequired) {
-        //                contentItemVersionCriteria.Add(Restrictions.Eq("Latest", true));
-        //            }
-        //        });
+            //    public IEnumerable<T> GetMany<T>(IEnumerable<int> ids, VersionOptions options) where T : class, IContent {
+            //        var contentItemVersionRecords = GetManyImplementation(hints, (contentItemCriteria, contentItemVersionCriteria) => {
+            //            contentItemCriteria.Add(Restrictions.In("Id", ids.ToArray()));
+            //            if (options.IsPublished) {
+            //                contentItemVersionCriteria.Add(Restrictions.Eq("Published", true));
+            //            }
+            //            else if (options.IsLatest) {
+            //                contentItemVersionCriteria.Add(Restrictions.Eq("Latest", true));
+            //            }
+            //            else if (options.IsDraft && !options.IsDraftRequired) {
+            //                contentItemVersionCriteria.Add(
+            //                    Restrictions.And(Restrictions.Eq("Published", false),
+            //                                    Restrictions.Eq("Latest", true)));
+            //            }
+            //            else if (options.IsDraft || options.IsDraftRequired) {
+            //                contentItemVersionCriteria.Add(Restrictions.Eq("Latest", true));
+            //            }
+            //        });
 
-        //        var itemsById = contentItemVersionRecords
-        //            .Select(r => Get(r.ContentItemRecord.Id, options.IsDraftRequired ? options : VersionOptions.VersionRecord(r.Id)))
-        //            .GroupBy(ci => ci.Id)
-        //            .ToDictionary(g => g.Key);
+            //        var itemsById = contentItemVersionRecords
+            //            .Select(r => Get(r.ContentItemRecord.Id, options.IsDraftRequired ? options : VersionOptions.VersionRecord(r.Id)))
+            //            .GroupBy(ci => ci.Id)
+            //            .ToDictionary(g => g.Key);
 
-        //        return ids.SelectMany(id => {
-        //                IGrouping<int, ContentItem> values;
-        //                return itemsById.TryGetValue(id, out values) ? values : Enumerable.Empty<ContentItem>();
-        //            }).AsPart<T>().ToArray();
-        //    }
+            //        return ids.SelectMany(id => {
+            //                IGrouping<int, ContentItem> values;
+            //                return itemsById.TryGetValue(id, out values) ? values : Enumerable.Empty<ContentItem>();
+            //            }).AsPart<T>().ToArray();
+            //    }
 
 
-        //    public IEnumerable<ContentItem> GetManyByVersionId(IEnumerable<int> versionRecordIds) {
-        //        var contentItemVersionRecords = GetManyImplementation((contentItemCriteria, contentItemVersionCriteria) =>
-        //            contentItemVersionCriteria.Add(Restrictions.In("Id", versionRecordIds.ToArray())));
+            //    public IEnumerable<ContentItem> GetManyByVersionId(IEnumerable<int> versionRecordIds) {
+            //        var contentItemVersionRecords = GetManyImplementation((contentItemCriteria, contentItemVersionCriteria) =>
+            //            contentItemVersionCriteria.Add(Restrictions.In("Id", versionRecordIds.ToArray())));
 
-        //        var itemsById = contentItemVersionRecords
-        //            .Select(r => Get(r.ContentItemRecord.Id, VersionOptions.VersionRecord(r.Id)))
-        //            .GroupBy(ci => ci.VersionRecord.Id)
-        //            .ToDictionary(g => g.Key);
+            //        var itemsById = contentItemVersionRecords
+            //            .Select(r => Get(r.ContentItemRecord.Id, VersionOptions.VersionRecord(r.Id)))
+            //            .GroupBy(ci => ci.VersionRecord.Id)
+            //            .ToDictionary(g => g.Key);
 
-        //        return versionRecordIds.SelectMany(id => {
-        //            IGrouping<int, ContentItem> values;
-        //            return itemsById.TryGetValue(id, out values) ? values : Enumerable.Empty<ContentItem>();
-        //        }).ToArray();
-        //    }
+            //        return versionRecordIds.SelectMany(id => {
+            //            IGrouping<int, ContentItem> values;
+            //            return itemsById.TryGetValue(id, out values) ? values : Enumerable.Empty<ContentItem>();
+            //        }).ToArray();
+            //    }
 
-        //    public IEnumerable<T> GetManyByVersionId<T>(IEnumerable<int> versionRecordIds) where T : class, IContent {
-        //        return GetManyByVersionId(versionRecordIds).AsPart<T>();
-        //    }
+            //    public IEnumerable<T> GetManyByVersionId<T>(IEnumerable<int> versionRecordIds) where T : class, IContent {
+            //        return GetManyByVersionId(versionRecordIds).AsPart<T>();
+            //    }
 
-        //    private IEnumerable<ContentItemVersionRecord> GetManyImplementation(Action<ICriteria, ICriteria> predicate) {
-        //        var session = _sessionLocator.Value.For(typeof (ContentItemRecord));
-        //        var contentItemVersionCriteria = session.CreateCriteria(typeof (ContentItemVersionRecord));
-        //        var contentItemCriteria = contentItemVersionCriteria.CreateCriteria("ContentItemRecord");
-        //        predicate(contentItemCriteria, contentItemVersionCriteria);
+            //    private IEnumerable<ContentItemVersionRecord> GetManyImplementation(Action<ICriteria, ICriteria> predicate) {
+            //        var session = _sessionLocator.Value.For(typeof (ContentItemRecord));
+            //        var contentItemVersionCriteria = session.CreateCriteria(typeof (ContentItemVersionRecord));
+            //        var contentItemCriteria = contentItemVersionCriteria.CreateCriteria("ContentItemRecord");
+            //        predicate(contentItemCriteria, contentItemVersionCriteria);
 
-        //        var contentItemMetadata = session.SessionFactory.GetClassMetadata(typeof (ContentItemRecord));
-        //        var contentItemVersionMetadata = session.SessionFactory.GetClassMetadata(typeof (ContentItemVersionRecord));
+            //        var contentItemMetadata = session.SessionFactory.GetClassMetadata(typeof (ContentItemRecord));
+            //        var contentItemVersionMetadata = session.SessionFactory.GetClassMetadata(typeof (ContentItemVersionRecord));
 
-        //        if (hints != QueryHints.Empty) {
-        //            // break apart and group hints by their first segment
-        //            var hintDictionary = hints.Records
-        //                .Select(hint => new { Hint = hint, Segments = hint.Split('.') })
-        //                .GroupBy(item => item.Segments.FirstOrDefault())
-        //                .ToDictionary(grouping => grouping.Key, StringComparer.InvariantCultureIgnoreCase);
+            //        if (hints != QueryHints.Empty) {
+            //            // break apart and group hints by their first segment
+            //            var hintDictionary = hints.Records
+            //                .Select(hint => new { Hint = hint, Segments = hint.Split('.') })
+            //                .GroupBy(item => item.Segments.FirstOrDefault())
+            //                .ToDictionary(grouping => grouping.Key, StringComparer.InvariantCultureIgnoreCase);
 
-        //            // locate hints that match properties in the ContentItemVersionRecord
-        //            foreach (var hit in contentItemVersionMetadata.PropertyNames.Where(hintDictionary.ContainsKey).SelectMany(key => hintDictionary[key])) {
-        //                contentItemVersionCriteria.SetFetchMode(hit.Hint, FetchMode.Eager);
-        //                hit.Segments.Take(hit.Segments.Count() - 1).Aggregate(contentItemVersionCriteria, ExtendCriteria);
-        //            }
+            //            // locate hints that match properties in the ContentItemVersionRecord
+            //            foreach (var hit in contentItemVersionMetadata.PropertyNames.Where(hintDictionary.ContainsKey).SelectMany(key => hintDictionary[key])) {
+            //                contentItemVersionCriteria.SetFetchMode(hit.Hint, FetchMode.Eager);
+            //                hit.Segments.Take(hit.Segments.Count() - 1).Aggregate(contentItemVersionCriteria, ExtendCriteria);
+            //            }
 
-        //            // locate hints that match properties in the ContentItemRecord
-        //            foreach (var hit in contentItemMetadata.PropertyNames.Where(hintDictionary.ContainsKey).SelectMany(key => hintDictionary[key])) {
-        //                contentItemVersionCriteria.SetFetchMode("ContentItemRecord." + hit.Hint, FetchMode.Eager);
-        //                hit.Segments.Take(hit.Segments.Count() - 1).Aggregate(contentItemCriteria, ExtendCriteria);
-        //            }
+            //            // locate hints that match properties in the ContentItemRecord
+            //            foreach (var hit in contentItemMetadata.PropertyNames.Where(hintDictionary.ContainsKey).SelectMany(key => hintDictionary[key])) {
+            //                contentItemVersionCriteria.SetFetchMode("ContentItemRecord." + hit.Hint, FetchMode.Eager);
+            //                hit.Segments.Take(hit.Segments.Count() - 1).Aggregate(contentItemCriteria, ExtendCriteria);
+            //            }
 
-        //            if (hintDictionary.SelectMany(x => x.Value).Any(x => x.Segments.Count() > 1))
-        //                contentItemVersionCriteria.SetResultTransformer(new DistinctRootEntityResultTransformer());
-        //        }
+            //            if (hintDictionary.SelectMany(x => x.Value).Any(x => x.Segments.Count() > 1))
+            //                contentItemVersionCriteria.SetResultTransformer(new DistinctRootEntityResultTransformer());
+            //        }
 
-        //        contentItemCriteria.SetCacheable(true);
+            //        contentItemCriteria.SetCacheable(true);
 
-        //        return contentItemVersionCriteria.List<ContentItemVersionRecord>();
-        //    }
+            //        return contentItemVersionCriteria.List<ContentItemVersionRecord>();
+            //    }
 
-        //    private static ICriteria ExtendCriteria(ICriteria criteria, string segment) {
-        //        return criteria.GetCriteriaByPath(segment) ?? criteria.CreateCriteria(segment, JoinType.LeftOuterJoin);
-        //    }
+            //    private static ICriteria ExtendCriteria(ICriteria criteria, string segment) {
+            //        return criteria.GetCriteriaByPath(segment) ?? criteria.CreateCriteria(segment, JoinType.LeftOuterJoin);
+            //    }
 
         public virtual void Publish(ContentItem contentItem) {
             if (contentItem.VersionRecord.Published) {
@@ -372,7 +379,7 @@ namespace OrchardVNext.ContentManagement {
             }
 
             contentItemRecord.Versions.Add(buildingItemVersionRecord);
-            _contentStorageProvider.Store(buildingItemVersionRecord);
+            _contentStorageProvider.Store(existingContentItem);
 
             var buildingContentItem = New(existingContentItem.ContentType);
             buildingContentItem.VersionRecord = buildingItemVersionRecord;
@@ -698,14 +705,14 @@ namespace OrchardVNext.ContentManagement {
 
         private ContentTypeRecord AcquireContentTypeRecord(string contentType) {
             
-            var contentTypeRecord = _contentStorageProvider
+            var contentTypeRecord = _documentStore
                 .Query<ContentTypeRecord>(x => x.Name == contentType)
                 .FirstOrDefault();
 
             if (contentTypeRecord == null) {
                 //TEMP: this is not safe... ContentItem types could be created concurrently?
                 contentTypeRecord = new ContentTypeRecord { Name = contentType };
-                _contentStorageProvider.Store(contentTypeRecord);
+                _documentStore.Store(contentTypeRecord);
             }
 
             var contentTypeId = contentTypeRecord.Id;
@@ -715,7 +722,7 @@ namespace OrchardVNext.ContentManagement {
             // content type. Thus we need to ensure that the cache is valid, or invalidate it and retrieve it 
             // another time.
 
-            var result = _contentStorageProvider
+            var result = _documentStore
                 .Query<ContentTypeRecord>(x => x.Id == contentTypeId)
                 .FirstOrDefault();
 

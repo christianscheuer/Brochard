@@ -50,7 +50,7 @@ namespace OrchardVNext.Data.EF {
 
                 foreach (var type in entityTypes) {
                     Logger.Debug("Mapping record {0}", type.FullName);
-
+                    
                     entityMethod.MakeGenericMethod(type)
                         .Invoke(modelBuilder, new object[0]);
                 }

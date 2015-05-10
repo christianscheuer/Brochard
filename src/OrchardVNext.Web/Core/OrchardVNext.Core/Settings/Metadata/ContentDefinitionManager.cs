@@ -10,13 +10,13 @@ using OrchardVNext.Data;
 
 namespace OrchardVNext.Core.Settings.Metadata {
     public class ContentDefinitionManager : Component, IContentDefinitionManager {
-        private readonly IContentStorageProvider _contentStorageProvider;
+        private readonly IDocumentStore _documentStore;
         private readonly ISettingsFormatter _settingsFormatter;
 
         public ContentDefinitionManager(
-            IContentStorageProvider contentStorageProvider,
+            IDocumentStore documentStore,
             ISettingsFormatter settingsFormatter) {
-            _contentStorageProvider = contentStorageProvider;
+            _documentStore = documentStore;
             _settingsFormatter = settingsFormatter;
         }
 
@@ -59,13 +59,13 @@ namespace OrchardVNext.Core.Settings.Metadata {
         }
 
         public void DeleteTypeDefinition(string name) {
-            var record = _contentStorageProvider
+            var record = _documentStore
                 .Query<ContentTypeDefinitionRecord>(x => x.Name == name)
                 .SingleOrDefault();
 
             // deletes the content type record associated
             if (record != null) {
-                _contentStorageProvider.Remove(record);
+                _documentStore.Remove(record);
             }
         }
 
@@ -78,12 +78,12 @@ namespace OrchardVNext.Core.Settings.Metadata {
             }
 
             // delete part
-            var record = _contentStorageProvider
+            var record = _documentStore
                 .Query<ContentPartDefinitionRecord>(x => x.Name == name)
                 .SingleOrDefault();
 
             if (record != null) {
-                _contentStorageProvider.Remove(record);
+                _documentStore.Remove(record);
             }
         }
 
@@ -99,7 +99,7 @@ namespace OrchardVNext.Core.Settings.Metadata {
         private IDictionary<string, ContentTypeDefinition> AcquireContentTypeDefinitions() {
             AcquireContentPartDefinitions();
 
-            var contentTypeDefinitionRecords = _contentStorageProvider
+            var contentTypeDefinitionRecords = _documentStore
                 .Query<ContentTypeDefinitionRecord>()
                 .Select(Build);
 
@@ -107,7 +107,7 @@ namespace OrchardVNext.Core.Settings.Metadata {
         }
 
         private IDictionary<string, ContentPartDefinition> AcquireContentPartDefinitions() {
-            var contentPartDefinitionRecords = _contentStorageProvider
+            var contentPartDefinitionRecords = _documentStore
                 .Query<ContentPartDefinitionRecord>()
                 .Select(Build);
 
@@ -115,44 +115,44 @@ namespace OrchardVNext.Core.Settings.Metadata {
         }
 
         private IDictionary<string, ContentFieldDefinition> AcquireContentFieldDefinitions() {
-            return _contentStorageProvider
+            return _documentStore
                 .Query<ContentFieldDefinitionRecord>()
                 .Select(Build)
                 .ToDictionary(x => x.Name, y => y);
         }
 
         private ContentTypeDefinitionRecord Acquire(ContentTypeDefinition contentTypeDefinition) {
-            var result = _contentStorageProvider
+            var result = _documentStore
                 .Query<ContentTypeDefinitionRecord>(x => x.Name == contentTypeDefinition.Name)
                 .SingleOrDefault();
 
             if (result == null) {
                 result = new ContentTypeDefinitionRecord { Name = contentTypeDefinition.Name, DisplayName = contentTypeDefinition.DisplayName };
-                _contentStorageProvider.Store(result);
+                _documentStore.Store(result);
             }
             return result;
         }
 
         private ContentPartDefinitionRecord Acquire(ContentPartDefinition contentPartDefinition) {
-            var result = _contentStorageProvider
+            var result = _documentStore
                 .Query<ContentPartDefinitionRecord>(x => x.Name == contentPartDefinition.Name)
                 .SingleOrDefault();
 
             if (result == null) {
                 result = new ContentPartDefinitionRecord { Name = contentPartDefinition.Name };
-                _contentStorageProvider.Store(result);
+                _documentStore.Store(result);
             }
             return result;
         }
 
         private ContentFieldDefinitionRecord Acquire(ContentFieldDefinition contentFieldDefinition) {
-            var result = _contentStorageProvider
+            var result = _documentStore
                 .Query<ContentFieldDefinitionRecord>(x => x.Name == contentFieldDefinition.Name)
                 .SingleOrDefault();
 
             if (result == null) {
                 result = new ContentFieldDefinitionRecord { Name = contentFieldDefinition.Name };
-                _contentStorageProvider.Store(result);
+                _documentStore.Store(result);
             }
             return result;
         }

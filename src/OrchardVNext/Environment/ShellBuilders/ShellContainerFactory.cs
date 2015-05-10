@@ -39,10 +39,12 @@ namespace OrchardVNext.Environment.ShellBuilders {
             serviceCollection.AddInstance(blueprint.Descriptor);
             serviceCollection.AddInstance(blueprint);
 
+            // TODO: Abstract out to module in EF folder.
             serviceCollection.AddEntityFramework()
                 .AddInMemoryStore()
                 .AddDbContext<DataContext>();
 
+            // TODO: Abstract out to module in MVC folder.
             serviceCollection.AddMvc();
 
             serviceCollection.Configure<RazorViewEngineOptions>(options =>

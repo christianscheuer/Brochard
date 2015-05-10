@@ -2,35 +2,52 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using OrchardVNext.ContentManagement;
 using OrchardVNext.ContentManagement.Records;
 
 namespace OrchardVNext.Data {
     public class ContentStorageProvider : IContentStorageProvider {
-        private readonly IContentDocumentStore _contentDocumentStore;
+        private readonly IEnumerable<IDocumentStore> _contentDocumentStores;
         private readonly IContentIndexProvider _contentIndexProvider;
 
-        public ContentStorageProvider(IContentDocumentStore contentDocumentStore,
+        public ContentStorageProvider(IEnumerable<IDocumentStore> contentDocumentStores,
             IContentIndexProvider contentIndexProvider) {
-            _contentDocumentStore = contentDocumentStore;
+            _contentDocumentStores = contentDocumentStores;
             _contentIndexProvider = contentIndexProvider;
         }
 
-        public void Store<T>(T document) where T : DocumentRecord {
-            _contentDocumentStore.Store(document);
-            _contentIndexProvider.Index(document);
+        public void Store<T>(T content) where T : IContent {
+            _contentDocumentStores.Invoke(store => {
+                store.Store(content.ContentItem.Record);
+                store.Store(content.ContentItem.VersionRecord);
+            });
+            _contentIndexProvider.Index(content, content.ContentItem.Record);
         }
 
-        public void Remove<T>(T document) where T : DocumentRecord {
-            _contentDocumentStore.Remove(document);
-            _contentIndexProvider.DeIndex(document);
+        public void Remove<T>(T content) where T : IContent {
+            _contentDocumentStores.Invoke(store => {
+                store.Remove(content.ContentItem.Record);
+                store.Remove(content.ContentItem.VersionRecord);
+            });
+            _contentIndexProvider.DeIndex(content);
         }
 
-        public IEnumerable<T> Query<T>() where T : DocumentRecord {
-            return _contentIndexProvider.Query<T>();
+        public IEnumerable<T> Query<T>(
+            Expression<Func<T, bool>> map, 
+            Func<T, bool> reduce) where T : IContent {
+            return Query(
+                map,
+                null,
+                reduce
+            );
         }
 
-        public IEnumerable<T> Query<T>(Expression<Func<T, bool>> filter) where T : DocumentRecord {
-            return _contentIndexProvider.Query(filter);
+        public IEnumerable<T> Query<T>(
+            Expression<Func<T, bool>> map, 
+            Expression<Action<IEnumerable<T>>> sort,
+            Func<T, bool> reduce) where T : IContent {
+
+            return _contentIndexProvider.Query(map, sort, reduce);
         }
     }
 }
